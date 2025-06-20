@@ -1,7 +1,5 @@
 {
   "buildCommand": "pnpm turbo build",
   "installCommand": "pnpm install",
-  "framework": null,
-  "outputDirectory": "apps/web/.next",
-  "ignoreBuildCache": false
+  "framework": null
 }
