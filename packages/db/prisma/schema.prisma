@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CompanyType {
+  UMZUG
+  ENTRUEMPELUNG
+  SCHADSTOFFSANIERUNG
+}
+
+enum OfferStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum JobStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  OVERDUE_1
+  OVERDUE_2
+  OVERDUE_3
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+  DRIVER
+}
+
+model Company {
+  id        String      @id @default(cuid())
+  name      String
+  type      CompanyType
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  customers Customer[]
+  employees Employee[]
+  vehicles  Vehicle[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  email     String
+  address   String
+  phone     String?
+  sqm       Float?
+  cbm       Float?
+  type      String   @default("PRIVATE") // PRIVATE or BUSINESS
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  offers  Offer[]
+  files   File[]
+}
+
+model Offer {
+  id         String      @id @default(cuid())
+  customerId String
+  status     OfferStatus @default(DRAFT)
+  totalPrice Float?
+  note       String?
+  validUntil DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  jobs     Job[]
+}
+
+model Job {
+  id         String    @id @default(cuid())
+  offerId    String
+  date       DateTime
+  status     JobStatus @default(PLANNED)
+  km         Float?
+  cbmPlanned Float?
+  cbmActual  Float?
+  vehicleId  String?
+  teamId     String?
+  tempLink   String?   @unique
+  linkExpiry DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  offer      Offer         @relation(fields: [offerId], references: [id])
+  vehicle    Vehicle?      @relation(fields: [vehicleId], references: [id])
+  team       Team?         @relation(fields: [teamId], references: [id])
+  invoice    Invoice?
+  files      File[]
+  assignments Assignment[]
+}
+
+model Invoice {
+  id        String        @id @default(cuid())
+  jobId     String        @unique
+  dueDate   DateTime
+  amount    Float
+  status    InvoiceStatus @default(OPEN)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  job Job @relation(fields: [jobId], references: [id])
+}
+
+model Employee {
+  id           String    @id @default(cuid())
+  companyId    String
+  userId       String?   @unique
+  name         String
+  role         UserRole  @default(STAFF)
+  driverClass  String?
+  hourlyRate   Float?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+  timeEntries  TimeEntry[]
+  assignments  Assignment[]
+  teamMembers  TeamMember[]
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  employee Employee?
+  accounts Account[]
+  sessions Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Vehicle {
+  id         String   @id @default(cuid())
+  companyId  String
+  name       String
+  licensePlate String @unique
+  cbmCapacity Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  jobs    Job[]
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs    Job[]
+  members TeamMember[]
+}
+
+model TeamMember {
+  id         String   @id @default(cuid())
+  teamId     String
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  team     Team     @relation(fields: [teamId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([teamId, employeeId])
+}
+
+model Assignment {
+  id         String   @id @default(cuid())
+  jobId      String
+  employeeId String
+  createdAt  DateTime @default(now())
+
+  job      Job      @relation(fields: [jobId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([jobId, employeeId])
+}
+
+model TimeEntry {
+  id         String    @id @default(cuid())
+  employeeId String
+  startTime  DateTime
+  endTime    DateTime?
+  breakMinutes Int     @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+}
+
+model File {
+  id         String   @id @default(cuid())
+  url        String
+  filename   String
+  mimetype   String
+  size       Int
+  customerId String?
+  jobId      String?
+  uploadedAt DateTime @default(now())
+
+  customer Customer? @relation(fields: [customerId], references: [id])
+  job      Job?      @relation(fields: [jobId], references: [id])
+}
